@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BookMarked, ChevronDown, Menu, Search, X } from 'lucide-react';
+import { BookMarked, ChevronDown, Menu, Search, X, LayoutDashboard } from 'lucide-react';
 import { usePublicLibrary } from '../store/useLibrary';
 import SearchBar from './SearchBar';
 
@@ -99,6 +99,9 @@ export default function Header() {
           <button className="icon-btn" onClick={() => setSearchOpen((v) => !v)} aria-label="بحث" aria-expanded={searchOpen}>
             <Search size={20} />
           </button>
+          <Link to="/admin" className="btn btn-primary btn-sm header-admin-btn">
+            <LayoutDashboard size={17} /> لوحة التحكم
+          </Link>
           <button className="icon-btn menu-btn" onClick={() => setMobileOpen(true)} aria-label="القائمة">
             <Menu size={22} />
           </button>
@@ -140,6 +143,11 @@ export default function Header() {
                   </NavLink>
                 </li>
               ))}
+              <li>
+                <NavLink to="/admin" className={({ isActive }) => (isActive ? 'is-active' : '')}>
+                  لوحة التحكم
+                </NavLink>
+              </li>
             </ul>
             <div className="drawer-cats">
               <h4>التصنيفات</h4>

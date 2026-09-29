@@ -471,9 +471,11 @@ html[dir='rtl'] .toc-item:hover { transform: translateX(4px); }
   .book-aside { position: static; order: -1; }
   .book-hero-cover-frame { position: static; }
 }
+.header-admin-btn { display: inline-flex; white-space: nowrap; }
 @media (max-width: 900px) {
   .main-nav { display: none; }
   .menu-btn { display: grid; }
+  .header-admin-btn { display: none; }
   .mega-inner { grid-template-columns: 1fr 1fr; }
   .footer-grid { grid-template-columns: 1fr 1fr; gap: 26px; }
 }
