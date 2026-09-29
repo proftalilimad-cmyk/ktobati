@@ -48,6 +48,8 @@ export interface ProviderMeta {
   urlPlaceholder: string;
   hint: string;
   supportsFileId: boolean;
+  /** short, accurate steps to obtain a shareable link (shown in the admin help) */
+  helpSteps: string[];
 }
 
 export const PROVIDER_META: Partial<Record<StorageProvider, ProviderMeta>> = {
@@ -57,6 +59,12 @@ export const PROVIDER_META: Partial<Record<StorageProvider, ProviderMeta>> = {
     urlPlaceholder: 'https://1drv.ms/… أو https://onedrive.live.com/…',
     hint: 'التخزين / الأرشفة. الصق رابط المشاركة العام للملف.',
     supportsFileId: true,
+    helpSteps: [
+      'ارفع ملف PDF/EPUB إلى OneDrive.',
+      'انقر بزر يمين على الملف ← «مشاركة» (Share).',
+      'اضبط الإذن على «أي شخص لديه الرابط» (Anyone with the link).',
+      'انسخ الرابط والصقه هنا. لتنزيل مباشر يمكن إضافة ‎?download=1‎ في نهاية رابط onedrive.live.com.',
+    ],
   },
   up4ever: {
     icon: '📥',
@@ -64,6 +72,12 @@ export const PROVIDER_META: Partial<Record<StorageProvider, ProviderMeta>> = {
     urlPlaceholder: 'https://up-4ever.net/…',
     hint: 'التحميل (وصفحة Up-4ever مع الإعلانات/الربح). الصق رابط التحميل من حسابك.',
     supportsFileId: false,
+    helpSteps: [
+      'سجّل الدخول إلى حسابك على up-4ever.net.',
+      'ارفع ملف PDF/EPUB.',
+      'انسخ «رابط التحميل» (Download link) الخاص بالملف.',
+      'الصق الرابط هنا — صفحة Up-4ever تتكفّل بالتحميل والربح.',
+    ],
   },
 };
 

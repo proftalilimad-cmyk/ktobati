@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Save, Send, Eye, ArrowRight, AlertTriangle, FileText, Image as ImageIcon, X, Search, Loader2, Star } from 'lucide-react';
+import { Plus, Trash2, Save, Send, Eye, ArrowRight, AlertTriangle, FileText, Image as ImageIcon, X, Search, Loader2, Star, ExternalLink, HelpCircle } from 'lucide-react';
 import { useAdminLibrary } from '../../store/useLibrary';
 import { useAdminPath } from '../base';
 import { useToast } from '../Toast';
 import Dropzone from '../components/Dropzone';
 import { putAsset } from '../../store/assets';
 import { slugify, resolveFiles } from '../../store/derive';
-import { SELECTABLE_PROVIDERS, PROVIDER_LABEL, PROVIDER_META, testLink, fileTypeFromUrl, isValidHttpUrl, type LinkTestResult } from '../../store/links';
+import { SELECTABLE_PROVIDERS, PROVIDER_LABEL, PROVIDER_META, providerFromUrl, testLink, fileTypeFromUrl, isValidHttpUrl, type LinkTestResult } from '../../store/links';
 import type { BookRecord, Contributor, BookStatus, Visibility, BookFile, StorageProvider, BookFileType } from '../../data/types';
 
 const roleLabels: Record<Contributor['role'], string> = {
@@ -131,6 +131,7 @@ export default function BookForm() {
 
   // ---- files manager ----
   const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const [helpOpen, setHelpOpen] = useState<Record<string, boolean>>({});
 
   function addFileLink(provider: StorageProvider = 'onedrive') {
     set('files', [
@@ -486,8 +487,19 @@ export default function BookForm() {
                       <>
                         {PROVIDER_META[f.provider] && (
                           <div className="provider-banner">
-                            <span className="provider-banner-title">{PROVIDER_META[f.provider]!.icon} {PROVIDER_META[f.provider]!.label}</span>
+                            <span className="provider-banner-title">
+                              {PROVIDER_META[f.provider]!.icon} {PROVIDER_META[f.provider]!.label}
+                              <button type="button" className="link-btn" style={{ marginInlineStart: 'auto' }}
+                                onClick={() => setHelpOpen((h) => ({ ...h, [f.id]: !h[f.id] }))}>
+                                <HelpCircle size={13} /> كيفية الحصول على الرابط
+                              </button>
+                            </span>
                             <span className="muted">{PROVIDER_META[f.provider]!.hint}</span>
+                            {helpOpen[f.id] && PROVIDER_META[f.provider]?.helpSteps && (
+                              <ol className="provider-help">
+                                {PROVIDER_META[f.provider]!.helpSteps.map((s, i) => <li key={i} dir="rtl">{s}</li>)}
+                              </ol>
+                            )}
                           </div>
                         )}
                         <label className="field"><span className="field-label">رابط التحميل (download_url) *</span>
@@ -495,14 +507,41 @@ export default function BookForm() {
                             <input className="mono-input" dir="ltr" value={f.downloadUrl}
                               onChange={(e) => updateFile(f.id, { downloadUrl: e.target.value, fileType: fileTypeFromUrl(e.target.value) ?? f.fileType, status: 'unverified' })}
                               placeholder={PROVIDER_META[f.provider]?.urlPlaceholder ?? 'https://…'} />
-                            <button className="btn btn-outline btn-sm" onClick={() => runTest(f)} disabled={testing[f.id] || !f.downloadUrl}>
+                            <button type="button" className="btn btn-outline btn-sm" onClick={() => runTest(f)} disabled={testing[f.id] || !f.downloadUrl}>
                               {testing[f.id] ? <Loader2 size={14} className="spin" /> : <Search size={14} />} اختبار
                             </button>
+                            <a className={`btn btn-outline btn-sm ${f.downloadUrl && isValidHttpUrl(f.downloadUrl).ok ? '' : 'is-disabled'}`}
+                              href={f.downloadUrl || undefined} target="_blank" rel="noopener noreferrer" title="فتح الرابط في تبويب جديد للتحقق">
+                              <ExternalLink size={14} /> فتح
+                            </a>
                           </div>
+                          {(() => {
+                            const url = f.downloadUrl.trim();
+                            if (!url) return null;
+                            const v = isValidHttpUrl(url);
+                            if (!v.ok) return <small className="field-note field-note--err">⚠️ رابط غير صالح.</small>;
+                            if (!v.https) return <small className="field-note field-note--warn">⚠️ الرابط ليس HTTPS.</small>;
+                            const detected = providerFromUrl(url);
+                            if (SELECTABLE_PROVIDERS.includes(detected) && detected !== f.provider) {
+                              return (
+                                <small className="field-note field-note--warn">
+                                  يبدو أن هذا الرابط من {PROVIDER_LABEL[detected]}.{' '}
+                                  <button type="button" className="link-btn" onClick={() => updateFile(f.id, { provider: detected })}>
+                                    تبديل المستضيف إلى {PROVIDER_LABEL[detected]}
+                                  </button>
+                                </small>
+                              );
+                            }
+                            return <small className="field-note field-note--ok">✓ الرابط يطابق المستضيف المحدد.</small>;
+                          })()}
                         </label>
                         <label className="field"><span className="field-label">رابط القراءة (اختياري)</span>
                           <input className="mono-input" dir="ltr" value={f.readUrl ?? ''}
                             onChange={(e) => updateFile(f.id, { readUrl: e.target.value })} placeholder="https://… (قراءة أونلاين)" />
+                        </label>
+                        <label className="field"><span className="field-label">اسم الملف (اختياري)</span>
+                          <input value={f.fileName ?? ''}
+                            onChange={(e) => updateFile(f.id, { fileName: e.target.value })} placeholder="مثال: كتاب-١٩٨٤.pdf" />
                         </label>
                         {f.provider === 'onedrive' && (
                           <>

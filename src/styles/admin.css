@@ -225,15 +225,23 @@
 .filecard-primary { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-size: .78rem; }
 .filecard-primary input { width: auto; }
 .txt-amber { color: var(--accent); }
-.input-with-btn { display: flex; gap: 8px; align-items: stretch; }
-.input-with-btn .mono-input { flex: 1; }
+.input-with-btn { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.input-with-btn .mono-input { flex: 1; min-width: 180px; }
 .input-with-btn .btn { white-space: nowrap; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .provider-banner { display: flex; flex-direction: column; gap: 2px; padding: 8px 11px; margin-bottom: 10px; border-radius: var(--r-sm); background: var(--primary-soft); border: 1px solid var(--border); }
-.provider-banner-title { font-weight: 700; font-size: .9rem; }
+.provider-banner-title { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .9rem; }
 .provider-banner .muted { font-size: .78rem; }
+.provider-help { margin: 6px 0 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--ink-700, #444); }
+.provider-help li { line-height: 1.5; }
+.link-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; padding: 0; color: var(--primary, #2563eb); font: inherit; font-size: .78rem; cursor: pointer; text-decoration: underline; }
+.field-note { display: block; margin-top: 4px; font-size: .76rem; }
+.field-note--ok { color: #15803d; }
+.field-note--warn { color: #b45309; }
+.field-note--err { color: #b91c1c; }
+.btn.is-disabled { pointer-events: none; opacity: .45; }
 .rights-box { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--r-md); font-size: .84rem; line-height: 1.5; cursor: pointer; background: var(--white); }
 .rights-box.is-on { border-color: #16a34a; background: #f0fdf4; }
 .rights-box input { width: auto; margin-top: 3px; }
