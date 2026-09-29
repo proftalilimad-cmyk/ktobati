@@ -46,6 +46,7 @@ export default function Footer() {
             <li><Link to="/search">البحث</Link></li>
             <li><a href="#top">الأسئلة الشائعة</a></li>
             <li><a href="#top">سياسة الاستخدام</a></li>
+            <li><Link to="/admin">لوحة الإدارة (Dashboard)</Link></li>
           </ul>
           <p className="footer-note muted">
             المصادر متاحة مجانًا للاستخدام الشخصي من مكتبات عربية مفتوحة.
