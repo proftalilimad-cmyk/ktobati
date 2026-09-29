@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Save, Send, Eye, ArrowRight, AlertTriangle, FileText, Image as ImageIcon, X, Search, Loader2, Star, UploadCloud } from 'lucide-react';
+import { Plus, Trash2, Save, Send, Eye, ArrowRight, AlertTriangle, FileText, Image as ImageIcon, X, Search, Loader2, Star } from 'lucide-react';
 import { useAdminLibrary } from '../../store/useLibrary';
 import { useAdminPath } from '../base';
 import { useToast } from '../Toast';
 import Dropzone from '../components/Dropzone';
 import { putAsset } from '../../store/assets';
 import { slugify, resolveFiles } from '../../store/derive';
-import { PROVIDERS, testLink, providerFromUrl, fileTypeFromUrl, isValidHttpUrl, type LinkTestResult } from '../../store/links';
+import { SELECTABLE_PROVIDERS, PROVIDER_LABEL, PROVIDER_META, testLink, fileTypeFromUrl, isValidHttpUrl, type LinkTestResult } from '../../store/links';
 import type { BookRecord, Contributor, BookStatus, Visibility, BookFile, StorageProvider, BookFileType } from '../../data/types';
 
 const roleLabels: Record<Contributor['role'], string> = {
@@ -132,12 +132,12 @@ export default function BookForm() {
   // ---- files manager ----
   const [testing, setTesting] = useState<Record<string, boolean>>({});
 
-  function addFileLink() {
+  function addFileLink(provider: StorageProvider = 'onedrive') {
     set('files', [
       ...form.files,
       {
         id: newFileId(),
-        provider: 'external',
+        provider,
         fileType: 'pdf',
         downloadUrl: '',
         readUrl: '',
@@ -159,28 +159,6 @@ export default function BookForm() {
 
   function setPrimaryFile(id: string) {
     set('files', form.files.map((f) => ({ ...f, isPrimary: f.id === id })));
-  }
-
-  async function onUploadFile(file: File) {
-    const ok = /\.(pdf|epub)$/i.test(file.name);
-    if (!ok) { toast('صيغة الملف غير مدعومة (PDF/EPUB)', 'error'); return; }
-    const assetId = store.newId();
-    await putAsset(assetId, file);
-    set('files', [
-      ...form.files,
-      {
-        id: newFileId(),
-        provider: 'local',
-        fileType: /\.epub$/i.test(file.name) ? 'epub' : 'pdf',
-        fileName: file.name,
-        fileSize: file.size,
-        downloadUrl: URL.createObjectURL(file),
-        assetId,
-        isPrimary: form.files.length === 0,
-        status: 'active',
-      },
-    ]);
-    toast('تم رفع الملف إلى المتصفح (IndexedDB)', 'success');
   }
 
   async function runTest(f: BookFile) {
@@ -223,8 +201,10 @@ export default function BookForm() {
     // per-file URL validation
     for (const f of form.files) {
       if (f.provider === 'local') continue;
-      if (f.downloadUrl && !isValidHttpUrl(f.downloadUrl).ok) errs.push(`رابط التحميل غير صالح (${f.fileType.toUpperCase()}).`);
-      if (f.readUrl && !isValidHttpUrl(f.readUrl).ok) errs.push(`رابط القراءة غير صالح (${f.fileType.toUpperCase()}).`);
+      const prov = PROVIDER_LABEL[f.provider];
+      if (forPublish && !f.downloadUrl.trim()) errs.push(`رابط التحميل مطلوب (${f.fileType.toUpperCase()} · ${prov}).`);
+      if (f.downloadUrl && !isValidHttpUrl(f.downloadUrl).ok) errs.push(`رابط التحميل غير صالح (${f.fileType.toUpperCase()} · ${prov}).`);
+      if (f.readUrl && !isValidHttpUrl(f.readUrl).ok) errs.push(`رابط القراءة غير صالح (${f.fileType.toUpperCase()} · ${prov}).`);
     }
     // slug uniqueness
     const slug = slugify(form.slug || form.title);
@@ -456,7 +436,7 @@ export default function BookForm() {
           <section className="admin-card">
             <h2 className="form-section-title"><FileText size={17} /> 📁 ملفات الكتاب</h2>
             <p className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>
-              أضف PDF و/أو EPUB على أي مستضيف خارجي. لا تُخزَّن الملفات الكبيرة داخل الموقع.
+              أضف PDF و/أو EPUB عبر <strong>OneDrive</strong> (تخزين) أو <strong>Up-4ever</strong> (تحميل). لا تُخزَّن الملفات داخل الموقع — تُحفظ الروابط فقط.
             </p>
 
             {form.files.length === 0 && (
@@ -489,8 +469,8 @@ export default function BookForm() {
                       </label>
                       <label className="field"><span className="field-label">المستضيف</span>
                         <select value={f.provider} onChange={(e) => updateFile(f.id, { provider: e.target.value as StorageProvider })} disabled={f.provider === 'local'}>
-                          {PROVIDERS.filter((p) => p.id !== 'local').map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-                          {f.provider === 'local' && <option value="local">تم رفعه (محلي)</option>}
+                          {SELECTABLE_PROVIDERS.map((p) => <option key={p} value={p}>{PROVIDER_META[p]?.icon} {PROVIDER_LABEL[p]}</option>)}
+                          {!SELECTABLE_PROVIDERS.includes(f.provider) && <option value={f.provider}>{PROVIDER_LABEL[f.provider]} (قديم)</option>}
                         </select>
                       </label>
                     </div>
@@ -504,11 +484,17 @@ export default function BookForm() {
                       </div>
                     ) : (
                       <>
-                        <label className="field"><span className="field-label">رابط التحميل (download_url)</span>
+                        {PROVIDER_META[f.provider] && (
+                          <div className="provider-banner">
+                            <span className="provider-banner-title">{PROVIDER_META[f.provider]!.icon} {PROVIDER_META[f.provider]!.label}</span>
+                            <span className="muted">{PROVIDER_META[f.provider]!.hint}</span>
+                          </div>
+                        )}
+                        <label className="field"><span className="field-label">رابط التحميل (download_url) *</span>
                           <div className="input-with-btn">
                             <input className="mono-input" dir="ltr" value={f.downloadUrl}
-                              onChange={(e) => updateFile(f.id, { downloadUrl: e.target.value, provider: providerFromUrl(e.target.value), fileType: fileTypeFromUrl(e.target.value) ?? f.fileType, status: 'unverified' })}
-                              placeholder="https://…" />
+                              onChange={(e) => updateFile(f.id, { downloadUrl: e.target.value, fileType: fileTypeFromUrl(e.target.value) ?? f.fileType, status: 'unverified' })}
+                              placeholder={PROVIDER_META[f.provider]?.urlPlaceholder ?? 'https://…'} />
                             <button className="btn btn-outline btn-sm" onClick={() => runTest(f)} disabled={testing[f.id] || !f.downloadUrl}>
                               {testing[f.id] ? <Loader2 size={14} className="spin" /> : <Search size={14} />} اختبار
                             </button>
@@ -518,6 +504,22 @@ export default function BookForm() {
                           <input className="mono-input" dir="ltr" value={f.readUrl ?? ''}
                             onChange={(e) => updateFile(f.id, { readUrl: e.target.value })} placeholder="https://… (قراءة أونلاين)" />
                         </label>
+                        {f.provider === 'onedrive' && (
+                          <>
+                            <label className="field"><span className="field-label">معرّف ملف OneDrive (اختياري)</span>
+                              <input className="mono-input" dir="ltr" value={f.externalFileId ?? ''}
+                                onChange={(e) => updateFile(f.id, { externalFileId: e.target.value })} placeholder="OneDrive item id (لتكامل Microsoft Graph مستقبلًا)" />
+                            </label>
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              disabled
+                              title="يتطلب إعداد Microsoft Graph من جهة الخادم (غير مُفعّل)"
+                            >
+                              📁 اختيار من OneDrive (يتطلب إعداد Graph)
+                            </button>
+                          </>
+                        )}
                       </>
                     )}
                   </div>
@@ -526,11 +528,8 @@ export default function BookForm() {
             </div>
 
             <div className="row wrap" style={{ gap: 8, marginTop: 12 }}>
-              <button className="btn btn-outline btn-sm" onClick={addFileLink}><Plus size={15} /> إضافة رابط ملف</button>
-              <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
-                <UploadCloud size={15} /> رفع محلي (IndexedDB)
-                <input type="file" accept=".pdf,.epub" hidden onChange={(e) => e.target.files && onUploadFile(e.target.files[0])} />
-              </label>
+              <button className="btn btn-outline btn-sm" onClick={() => addFileLink('onedrive')}>☁️ إضافة ملف OneDrive</button>
+              <button className="btn btn-outline btn-sm" onClick={() => addFileLink('up4ever')}>📥 إضافة ملف Up-4ever</button>
             </div>
 
             {filesWithUrl.length > 0 && (

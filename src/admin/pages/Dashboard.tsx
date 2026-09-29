@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, Users, Tags, FileEdit, CheckCircle2, Archive, PlusCircle, Upload, Clock, TrendingUp, FileText, Link2 } from 'lucide-react';
+import { BookOpen, Users, Tags, FileEdit, CheckCircle2, Archive, PlusCircle, Upload, Clock, TrendingUp, FileText, Link2, Cloud, Download } from 'lucide-react';
 import { useAdminLibrary } from '../../store/useLibrary';
 import { useAdminPath } from '../base';
 import { StatusBadge } from '../components/StatusBadge';
@@ -27,6 +27,8 @@ export default function Dashboard() {
   const epubCount = allFiles.filter((f) => f.fileType === 'epub').length;
   const activeLinks = allFiles.filter((f) => f.status === 'active').length;
   const toVerifyLinks = allFiles.filter((f) => f.status !== 'active').length;
+  const onedriveBooks = books.filter((b) => b.files.some((f) => f.provider === 'onedrive')).length;
+  const up4everBooks = books.filter((b) => b.files.some((f) => f.provider === 'up4ever')).length;
 
   const stats = [
     { icon: <BookOpen size={20} />, value: books.length, label: 'إجمالي الكتب', color: 'teal' },
@@ -37,6 +39,8 @@ export default function Dashboard() {
     { icon: <Archive size={20} />, value: archived, label: 'مؤرشف', color: 'slate' },
     { icon: <FileText size={20} />, value: pdfCount, label: 'ملفات PDF', color: 'teal' },
     { icon: <FileText size={20} />, value: epubCount, label: 'ملفات EPUB', color: 'blue' },
+    { icon: <Cloud size={20} />, value: onedriveBooks, label: 'كتب على OneDrive', color: 'blue' },
+    { icon: <Download size={20} />, value: up4everBooks, label: 'كتب على Up-4ever', color: 'violet' },
     { icon: <Link2 size={20} />, value: activeLinks, label: 'روابط نشطة', color: 'green' },
     { icon: <Link2 size={20} />, value: toVerifyLinks, label: 'روابط للتحقق', color: 'amber' },
   ];

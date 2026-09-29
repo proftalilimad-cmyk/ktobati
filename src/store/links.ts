@@ -34,6 +34,39 @@ export const PROVIDER_LABEL: Record<StorageProvider, string> = PROVIDERS.reduce(
   {} as Record<StorageProvider, string>,
 );
 
+/**
+ * Providers offered in the admin UI for THIS version.
+ * The mission restricts new files to OneDrive + Up-4ever. The wider
+ * StorageProvider type is kept so existing/seed data (external URLs, local
+ * uploads) still renders correctly and the app stays extensible.
+ */
+export const SELECTABLE_PROVIDERS: StorageProvider[] = ['onedrive', 'up4ever'];
+
+export interface ProviderMeta {
+  icon: string;
+  label: string;
+  urlPlaceholder: string;
+  hint: string;
+  supportsFileId: boolean;
+}
+
+export const PROVIDER_META: Partial<Record<StorageProvider, ProviderMeta>> = {
+  onedrive: {
+    icon: '☁️',
+    label: 'Microsoft OneDrive',
+    urlPlaceholder: 'https://1drv.ms/… أو https://onedrive.live.com/…',
+    hint: 'التخزين / الأرشفة. الصق رابط المشاركة العام للملف.',
+    supportsFileId: true,
+  },
+  up4ever: {
+    icon: '📥',
+    label: 'Up-4ever',
+    urlPlaceholder: 'https://up-4ever.net/…',
+    hint: 'التحميل (وصفحة Up-4ever مع الإعلانات/الربح). الصق رابط التحميل من حسابك.',
+    supportsFileId: false,
+  },
+};
+
 /** Guess a provider from a URL (falls back to 'external'). */
 export function providerFromUrl(url: string): StorageProvider {
   const u = url.toLowerCase();

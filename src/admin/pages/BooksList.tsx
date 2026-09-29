@@ -8,7 +8,7 @@ import { StatusBadge, VisibilityBadge } from '../components/StatusBadge';
 import Modal from '../components/Modal';
 import Cover from '../../components/Cover';
 import { normalizeAr } from '../../utils/search';
-import { PROVIDER_LABEL } from '../../store/links';
+import { PROVIDER_LABEL, SELECTABLE_PROVIDERS } from '../../store/links';
 import type { BookStatus, StorageProvider, BookFileType } from '../../data/types';
 
 export default function BooksList() {
@@ -86,7 +86,7 @@ export default function BooksList() {
         </select>
         <select value={provider} onChange={(e) => setProvider(e.target.value as typeof provider)}>
           <option value="all">كل المستضيفين</option>
-          {(Object.keys(PROVIDER_LABEL) as StorageProvider[]).map((p) => <option key={p} value={p}>{PROVIDER_LABEL[p]}</option>)}
+          {SELECTABLE_PROVIDERS.map((p) => <option key={p} value={p}>{PROVIDER_LABEL[p]}</option>)}
         </select>
         <select value={format} onChange={(e) => setFormat(e.target.value as typeof format)}>
           <option value="all">كل الصيغ</option>

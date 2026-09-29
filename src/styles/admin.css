@@ -231,6 +231,9 @@
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.provider-banner { display: flex; flex-direction: column; gap: 2px; padding: 8px 11px; margin-bottom: 10px; border-radius: var(--r-sm); background: var(--primary-soft); border: 1px solid var(--border); }
+.provider-banner-title { font-weight: 700; font-size: .9rem; }
+.provider-banner .muted { font-size: .78rem; }
 .rights-box { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--r-md); font-size: .84rem; line-height: 1.5; cursor: pointer; background: var(--white); }
 .rights-box.is-on { border-color: #16a34a; background: #f0fdf4; }
 .rights-box input { width: auto; margin-top: 3px; }

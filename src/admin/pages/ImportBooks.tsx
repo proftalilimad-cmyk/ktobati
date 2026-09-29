@@ -8,9 +8,10 @@ import { slugify } from '../../store/derive';
 import { providerFromUrl, fileTypeFromUrl } from '../../store/links';
 import type { BookRecord, BookStatus, Visibility, BookFile } from '../../data/types';
 
-const COLUMNS = ['title', 'author', 'category', 'description', 'language', 'year', 'readUrl', 'downloadUrl'];
-const SAMPLE = `title,author,category,description,language,year,readUrl,downloadUrl
-مثال كتاب,اسم المؤلف,روايات,وصف مختصر,العربية,2020,https://example.com/read,https://example.com/book.pdf`;
+const COLUMNS = ['title', 'author', 'category', 'file_type', 'storage_provider', 'download_url', 'read_url', 'description', 'language', 'year'];
+const SAMPLE = `title,author,category,file_type,storage_provider,download_url,read_url,description,language,year
+1984,George Orwell,روايات,pdf,onedrive,https://1drv.ms/xxxx,,رواية ديستوبية,العربية,1949
+الأمير الصغير,أنطوان دو سانت إكزوبيري,أدب,epub,up4ever,https://up-4ever.net/xxxx,,حكاية فلسفية,العربية,1943`;
 
 const STEPS = ['رفع الملف', 'مطابقة الأعمدة', 'التحقق', 'التصنيفات', 'إعدادات النشر', 'تأكيد', 'النتيجة'];
 
@@ -112,9 +113,14 @@ export default function ImportBooks() {
       if (!data.author) errors.push('المؤلف مفقود');
       if (!data.category) warnings.push('لا يوجد تصنيف');
       else if (!catByName.has(data.category.trim().toLowerCase())) warnings.push(`تصنيف جديد: «${data.category}»`);
-      if (!isValidUrl(data.readUrl)) errors.push('رابط القراءة غير صالح');
-      if (!isValidUrl(data.downloadUrl)) errors.push('رابط التحميل غير صالح');
-      if (!data.readUrl && !data.downloadUrl) warnings.push('لا يوجد رابط قراءة أو تحميل');
+      const provider = data.storage_provider?.trim().toLowerCase();
+      if (provider && provider !== 'onedrive' && provider !== 'up4ever') errors.push('المستضيف يجب أن يكون onedrive أو up4ever');
+      const ft = data.file_type?.trim().toLowerCase();
+      if (ft && ft !== 'pdf' && ft !== 'epub') errors.push('الصيغة يجب أن تكون pdf أو epub');
+      if (data.download_url && provider && !isValidUrl(data.download_url)) errors.push('رابط التحميل غير صالح');
+      if (data.download_url && !provider) warnings.push('رابط تحميل بدون مستضيف — سيُكتشف تلقائيًا');
+      if (!isValidUrl(data.read_url)) errors.push('رابط القراءة غير صالح');
+      if (!data.download_url && !data.read_url) warnings.push('لا يوجد رابط قراءة أو تحميل');
       if (data.year && !/^\d{3,4}$/.test(data.year)) warnings.push('سنة غير صحيحة');
       return { data, errors, warnings };
     });
@@ -146,14 +152,18 @@ export default function ImportBooks() {
     const records: Array<Omit<BookRecord, 'id'>> = validRows.map((r, ri) => {
       const d = r.data;
       const catSlug = catByName.get(d.category?.trim().toLowerCase()) ?? (autoCreateCats && d.category ? slugify(d.category) : '');
-      const chapters = d.readUrl ? [{ title: 'قراءة الكتاب', url: d.readUrl }] : [];
-      const files: BookFile[] = d.downloadUrl
+      const chapters = d.read_url ? [{ title: 'قراءة الكتاب', url: d.read_url }] : [];
+      const provRaw = d.storage_provider?.trim().toLowerCase();
+      const provider = provRaw === 'onedrive' || provRaw === 'up4ever' ? provRaw : providerFromUrl(d.download_url);
+      const ftRaw = d.file_type?.trim().toLowerCase();
+      const fileType = ftRaw === 'pdf' || ftRaw === 'epub' ? ftRaw : (fileTypeFromUrl(d.download_url) ?? 'pdf');
+      const files: BookFile[] = d.download_url
         ? [{
             id: `imp-${ri}-${now}`,
-            provider: providerFromUrl(d.downloadUrl),
-            fileType: fileTypeFromUrl(d.downloadUrl) ?? 'pdf',
-            downloadUrl: d.downloadUrl,
-            readUrl: d.readUrl || undefined,
+            provider,
+            fileType,
+            downloadUrl: d.download_url,
+            readUrl: d.read_url || undefined,
             isPrimary: true,
             status: 'unverified',
             createdAt: now,
