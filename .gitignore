@@ -9,3 +9,12 @@ dist-ssr
 *.tsbuildinfo
 .env
 .env.local
+
+# book files are NEVER stored in the repo/build — only their external
+# URLs/ids live in the DB (OneDrive = archive, Up-4ever = download).
+*.pdf
+*.epub
+*.mobi
+*.kfx
+public/books/
+public/files/

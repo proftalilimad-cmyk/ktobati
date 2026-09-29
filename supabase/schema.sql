@@ -2,10 +2,37 @@
 --  المكتبة الإلكترونية العربية — Supabase schema (CMS backend, production-ready)
 -- ----------------------------------------------------------------------------
 --  Apply in the Supabase SQL editor (or `supabase db push`).
+--
+--  STORAGE ARCHITECTURE (this version = 2 external providers only):
+--
+--                        BIBLIOTHÈQUE  (admin CMS)
+--                              │
+--                              ▼
+--                        SUPABASE  DB          ← metadata + URLs/ids ONLY,
+--                              │                  NEVER the PDF/EPUB bytes
+--                   ┌──────────┴──────────┐
+--                   ▼                     ▼
+--                ONEDRIVE             UP-4EVER
+--             stockage / archive   téléchargement + monétisation
+--                   │                     │
+--                   └──────────┬──────────┘
+--                              ▼
+--                         SITE PUBLIC  →  📥 Télécharger
+--
+--    • book_files stores provider + file_type + file_name + file_size +
+--      download_url + read_url + external_file_id — but NO file contents.
+--    • Only 'onedrive' and 'up4ever' are offered by the admin UI in this
+--      version. Legacy provider values are kept in the enum so pre-existing
+--      books keep rendering (never deleted, never faked).
+--    • The 'book-files' Supabase bucket is NOT used for PDF/EPUB here; files
+--      live on OneDrive / Up-4ever. The bucket is retained (unused) so older
+--      supabase-hosted rows still resolve.
+--
 --  Security model:
 --    • Public (anon) users can SELECT only PUBLISHED + PUBLIC books.
 --    • Authenticated admins can INSERT / UPDATE / DELETE everything.
 --    • Never expose the service_role key in the frontend.
+--    • Provider API secrets (OneDrive Graph, Up-4ever) live server-side only.
 --  The frontend currently runs a local (browser) CMS with a Supabase-ready
 --  data layer; wiring it to this schema only requires swapping the store's
 --  persistence calls for Supabase client calls.
