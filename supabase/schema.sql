@@ -33,9 +33,10 @@
 --    • Authenticated admins can INSERT / UPDATE / DELETE everything.
 --    • Never expose the service_role key in the frontend.
 --    • Provider API secrets (OneDrive Graph, Up-4ever) live server-side only.
---  The frontend currently runs a local (browser) CMS with a Supabase-ready
---  data layer; wiring it to this schema only requires swapping the store's
---  persistence calls for Supabase client calls.
+--  The frontend ships a Supabase data layer (src/store/supabase.ts): set
+--  VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY to activate it — the catalog then
+--  hydrates from this schema and admin changes write back. With no env vars the
+--  app runs on the local (browser) store, unchanged.
 -- ============================================================================
 
 create extension if not exists "pgcrypto";

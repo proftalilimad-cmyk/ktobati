@@ -10,6 +10,13 @@ import { rawBooks } from '../data/books.raw';
 import { categories as seedCategories } from '../data/categories';
 import { buildSearchIndex, deriveAuthors, deriveBooks, runSearch, slugify } from './derive';
 import { deleteAsset, preloadAssets } from './assets';
+import {
+  deleteBookFromSupabase,
+  fetchCatalogFromSupabase,
+  isSupabaseConfigured,
+  upsertBookToSupabase,
+  upsertCategoryToSupabase,
+} from './supabase';
 
 const KEY = 'maktaba-catalog-v2';
 
@@ -88,6 +95,24 @@ class LibraryStore {
     if (ids.length) {
       preloadAssets(ids).then(() => this.commit(false));
     }
+    // Optional: when Supabase is configured, treat the DB as the source of
+    // truth for the catalog and hydrate over the local seed (non-blocking).
+    if (isSupabaseConfigured()) void this.hydrateFromSupabase();
+  }
+
+  /**
+   * Pull the published catalog from Supabase and replace the local records.
+   * Safe & non-breaking: if the DB is unreachable or empty, the local/seed
+   * data is kept. Never throws into the UI.
+   */
+  async hydrateFromSupabase() {
+    const catalog = await fetchCatalogFromSupabase();
+    if (!catalog) return;
+    if (catalog.records.length > 0) this.data.records = catalog.records;
+    if (catalog.categories.length > 0) this.data.categories = catalog.categories;
+    const ids = catalog.records.flatMap((r) => (r.files ?? []).map((f) => f.assetId).filter(Boolean) as string[]);
+    if (ids.length) await preloadAssets(ids).catch(() => {});
+    this.commit(false); // don't overwrite localStorage cache with server data
   }
 
   private catName = (slug: string) =>
@@ -175,6 +200,7 @@ class LibraryStore {
     this.log(record.status === 'published' ? 'publish' : 'create',
       record.status === 'published' ? 'نشر كتاب' : 'إضافة كتاب (مسودة)', record.title);
     this.commit();
+    if (isSupabaseConfigured()) void upsertBookToSupabase(record);
     return record;
   }
 
@@ -187,6 +213,7 @@ class LibraryStore {
     this.data.records[idx] = next;
     this.log('update', 'تعديل كتاب', next.title);
     this.commit();
+    if (isSupabaseConfigured()) void upsertBookToSupabase(next);
   }
 
   setStatus(id: string, status: BookRecord['status']) {
@@ -196,6 +223,7 @@ class LibraryStore {
     rec.updatedAt = new Date().toISOString();
     this.log('publish', status === 'published' ? 'نشر كتاب' : status === 'archived' ? 'أرشفة كتاب' : 'إلغاء نشر', rec.title);
     this.commit();
+    if (isSupabaseConfigured()) void upsertBookToSupabase(rec);
   }
 
   duplicateBook(id: string): BookRecord | undefined {
@@ -216,23 +244,28 @@ class LibraryStore {
     this.data.records = this.data.records.filter((r) => r.id !== id);
     this.log('delete', 'حذف كتاب', rec.title);
     this.commit();
+    if (isSupabaseConfigured()) void deleteBookFromSupabase(id);
   }
 
   importBooks(records: Array<Omit<BookRecord, 'id'>>): number {
     const now = new Date().toISOString();
+    const created: BookRecord[] = [];
     for (const rec of records) {
       const id = uid();
-      this.data.records.unshift({
+      const full: BookRecord = {
         ...rec,
         id,
         source: 'custom',
         slug: this.uniqueSlug(rec.slug || rec.title, id),
         createdAt: now,
         updatedAt: now,
-      });
+      };
+      this.data.records.unshift(full);
+      created.push(full);
     }
     this.log('import', `استيراد ${records.length} كتاب`, 'CSV');
     this.commit();
+    if (isSupabaseConfigured()) created.forEach((r) => void upsertBookToSupabase(r));
     return records.length;
   }
 
@@ -244,9 +277,11 @@ class LibraryStore {
   addCategory(cat: Category): { ok: boolean; error?: string } {
     if (this.data.categories.some((c) => c.slug === cat.slug))
       return { ok: false, error: 'المعرّف (slug) مستخدم بالفعل' };
-    this.data.categories.push({ ...cat, active: cat.active ?? true });
+    const full = { ...cat, active: cat.active ?? true };
+    this.data.categories.push(full);
     this.log('create', 'إضافة تصنيف', cat.name);
     this.commit();
+    if (isSupabaseConfigured()) void upsertCategoryToSupabase(full);
     return { ok: true };
   }
 
@@ -256,6 +291,7 @@ class LibraryStore {
     this.data.categories[idx] = { ...this.data.categories[idx], ...patch, slug };
     this.log('update', 'تعديل تصنيف', this.data.categories[idx].name);
     this.commit();
+    if (isSupabaseConfigured()) void upsertCategoryToSupabase(this.data.categories[idx]);
   }
 
   deleteCategory(slug: string): { ok: boolean; error?: string } {
