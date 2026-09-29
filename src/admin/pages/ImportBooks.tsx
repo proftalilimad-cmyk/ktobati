@@ -5,7 +5,8 @@ import { useAdminLibrary } from '../../store/useLibrary';
 import { useAdminPath } from '../base';
 import { useToast } from '../Toast';
 import { slugify } from '../../store/derive';
-import type { BookRecord, BookStatus, Visibility } from '../../data/types';
+import { providerFromUrl, fileTypeFromUrl } from '../../store/links';
+import type { BookRecord, BookStatus, Visibility, BookFile } from '../../data/types';
 
 const COLUMNS = ['title', 'author', 'category', 'description', 'language', 'year', 'readUrl', 'downloadUrl'];
 const SAMPLE = `title,author,category,description,language,year,readUrl,downloadUrl
@@ -63,6 +64,7 @@ export default function ImportBooks() {
   const [status, setStatus] = useState<BookStatus>('published');
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [autoCreateCats, setAutoCreateCats] = useState(true);
+  const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [progress, setProgress] = useState(0);
   const [imported, setImported] = useState(0);
 
@@ -140,10 +142,23 @@ export default function ImportBooks() {
         }
       }
     }
-    const records: Array<Omit<BookRecord, 'id'>> = validRows.map((r) => {
+    const now = new Date().toISOString();
+    const records: Array<Omit<BookRecord, 'id'>> = validRows.map((r, ri) => {
       const d = r.data;
       const catSlug = catByName.get(d.category?.trim().toLowerCase()) ?? (autoCreateCats && d.category ? slugify(d.category) : '');
       const chapters = d.readUrl ? [{ title: 'قراءة الكتاب', url: d.readUrl }] : [];
+      const files: BookFile[] = d.downloadUrl
+        ? [{
+            id: `imp-${ri}-${now}`,
+            provider: providerFromUrl(d.downloadUrl),
+            fileType: fileTypeFromUrl(d.downloadUrl) ?? 'pdf',
+            downloadUrl: d.downloadUrl,
+            readUrl: d.readUrl || undefined,
+            isPrimary: true,
+            status: 'unverified',
+            createdAt: now,
+          }]
+        : [];
       return {
         title: d.title,
         contributors: [{ id: `c-${slugify(d.author)}`, name: d.author, role: 'author' as const }],
@@ -153,7 +168,8 @@ export default function ImportBooks() {
         language: d.language || 'العربية',
         yearOriginal: d.year || undefined,
         chapters,
-        fileUrl: d.downloadUrl || undefined,
+        files,
+        rightsConfirmed,
         status,
         visibility,
         slug: slugify(d.title),
@@ -306,6 +322,13 @@ export default function ImportBooks() {
                 </select>
               </label>
             </div>
+            <label className={`rights-box ${rightsConfirmed ? 'is-on' : ''}`} style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={rightsConfirmed} onChange={(e) => setRightsConfirmed(e.target.checked)} />
+              <span>أؤكد امتلاكي الحقوق اللازمة لتوزيع هذه الملفات، والتزامي بشروط المستضيفين وحقوق النشر.</span>
+            </label>
+            {status === 'published' && !rightsConfirmed && (
+              <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>⚠️ يُنصح بتأكيد الحقوق قبل النشر.</p>
+            )}
           </div>
         )}
 

@@ -55,6 +55,33 @@ les changements apparaissent automatiquement sur le site public.
 les métadonnées, `IndexedDB` pour les fichiers/couvertures téléversés), derrière une
 couche de données prête pour Supabase.
 
+### 📁 Stockage externe des fichiers (PDF/EPUB)
+
+Les fichiers volumineux **ne sont jamais stockés dans le bundle** ni dans `public/`.
+Chaque livre peut avoir **plusieurs fichiers** (PDF **et** EPUB) hébergés indépendamment :
+
+- Fournisseurs supportés : **OneDrive, Up-4ever, FileInk, RapidFiles, FileFire,
+  Supabase Storage, URL externe** + téléversement local (IndexedDB). L'abstraction
+  `StorageProvider` (`src/store/links.ts`) permet d'ajouter Google Drive, Dropbox, S3,
+  R2… sans toucher au reste de l'app.
+- Dans le formulaire livre : section **« 📁 Fichiers du livre »** → format (PDF/EPUB),
+  hébergeur, `download_url`, `read_url` (optionnel), **bouton Tester le lien**, fichier
+  principal, suppression. Les URLs ne sont **jamais** inventées.
+- **Test de lien** : valide le format + HTTPS ; ne bloque jamais abusivement un hôte qui
+  refuse la vérification (CORS) → affiche « ⚠️ Impossible de vérifier ».
+- **Droits d'auteur** : case de confirmation obligatoire avant de publier des fichiers.
+- **Migration** : les anciens champs (`fileUrl`, `fileAssetId`…) sont migrés
+  automatiquement vers le nouveau modèle `book_files`, sans perte de données.
+- Côté public (`/livre/:slug`) : un bouton **📥 Télécharger** par format, plus
+  **📖 Lire** si une URL de lecture existe. Le bouton redirige simplement vers l'URL
+  réelle du fournisseur (aucune monétisation simulée).
+- **Sécurité** : seules des **URLs publiques** sont stockées en base. Toute clé d'API
+  (OneDrive Graph, PPD…) reste **côté serveur** (voir `.env.example`).
+
+> **Déploiement Netlify** : `netlify.toml` + `public/_redirects` assurent le fallback SPA
+> (`/* → /index.html`) pour que `/admin`, `/dashboard` et `/livre/:slug` fonctionnent au
+> rafraîchissement.
+
 ## 🗂️ Structure
 
 ```

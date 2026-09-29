@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Save, Send, Eye, ArrowRight, AlertTriangle, FileText, Image as ImageIcon, X } from 'lucide-react';
+import { Plus, Trash2, Save, Send, Eye, ArrowRight, AlertTriangle, FileText, Image as ImageIcon, X, Search, Loader2, Star, UploadCloud } from 'lucide-react';
 import { useAdminLibrary } from '../../store/useLibrary';
 import { useAdminPath } from '../base';
 import { useToast } from '../Toast';
 import Dropzone from '../components/Dropzone';
-import { putAsset, fileFormat } from '../../store/assets';
-import { slugify } from '../../store/derive';
-import type { BookRecord, Contributor, BookStatus, Visibility, FileMeta } from '../../data/types';
+import { putAsset } from '../../store/assets';
+import { slugify, resolveFiles } from '../../store/derive';
+import { PROVIDERS, testLink, providerFromUrl, fileTypeFromUrl, isValidHttpUrl, type LinkTestResult } from '../../store/links';
+import type { BookRecord, Contributor, BookStatus, Visibility, BookFile, StorageProvider, BookFileType } from '../../data/types';
 
 const roleLabels: Record<Contributor['role'], string> = {
   author: 'تأليف',
@@ -49,9 +50,8 @@ interface FormState {
   visibility: Visibility;
   coverUrl: string;
   coverAssetId?: string;
-  fileUrl: string;
-  fileAssetId?: string;
-  fileMeta?: FileMeta;
+  files: BookFile[];
+  rightsConfirmed: boolean;
 }
 
 const emptyForm: FormState = {
@@ -59,8 +59,11 @@ const emptyForm: FormState = {
   categorySlugs: [], language: 'العربية', yearOriginal: '', yearPublished: '',
   isbn: '', pages: '', words: '', teaser: '', description: '', authorBio: '',
   featured: false, status: 'draft', visibility: 'public',
-  coverUrl: '', fileUrl: '',
+  coverUrl: '', files: [], rightsConfirmed: false,
 };
+
+let fileSeq = 0;
+const newFileId = () => `f-${Date.now().toString(36)}-${fileSeq++}`;
 
 export default function BookForm() {
   const { id } = useParams();
@@ -98,9 +101,8 @@ export default function BookForm() {
         visibility: existing.visibility ?? 'public',
         coverUrl: existing.coverUrl ?? '',
         coverAssetId: existing.coverAssetId,
-        fileUrl: existing.fileUrl ?? '',
-        fileAssetId: existing.fileAssetId,
-        fileMeta: existing.fileMeta,
+        files: resolveFiles(existing).map((f) => ({ ...f })),
+        rightsConfirmed: Boolean(existing.rightsConfirmed),
       });
       setSlugTouched(true);
     }
@@ -127,15 +129,68 @@ export default function BookForm() {
     toast('تم رفع الغلاف', 'success');
   }
 
-  async function onFile(file: File) {
+  // ---- files manager ----
+  const [testing, setTesting] = useState<Record<string, boolean>>({});
+
+  function addFileLink() {
+    set('files', [
+      ...form.files,
+      {
+        id: newFileId(),
+        provider: 'external',
+        fileType: 'pdf',
+        downloadUrl: '',
+        readUrl: '',
+        isPrimary: form.files.length === 0,
+        status: 'unverified',
+      },
+    ]);
+  }
+
+  function updateFile(id: string, patch: Partial<BookFile>) {
+    set('files', form.files.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+  }
+
+  function removeFile(id: string) {
+    const next = form.files.filter((f) => f.id !== id);
+    if (next.length > 0 && !next.some((f) => f.isPrimary)) next[0].isPrimary = true;
+    set('files', next);
+  }
+
+  function setPrimaryFile(id: string) {
+    set('files', form.files.map((f) => ({ ...f, isPrimary: f.id === id })));
+  }
+
+  async function onUploadFile(file: File) {
     const ok = /\.(pdf|epub)$/i.test(file.name);
     if (!ok) { toast('صيغة الملف غير مدعومة (PDF/EPUB)', 'error'); return; }
     const assetId = store.newId();
     await putAsset(assetId, file);
-    set('fileAssetId', assetId);
-    set('fileUrl', '');
-    set('fileMeta', { name: file.name, size: file.size, format: fileFormat(file.name), importedAt: new Date().toISOString() });
-    toast('تم رفع الملف', 'success');
+    set('files', [
+      ...form.files,
+      {
+        id: newFileId(),
+        provider: 'local',
+        fileType: /\.epub$/i.test(file.name) ? 'epub' : 'pdf',
+        fileName: file.name,
+        fileSize: file.size,
+        downloadUrl: URL.createObjectURL(file),
+        assetId,
+        isPrimary: form.files.length === 0,
+        status: 'active',
+      },
+    ]);
+    toast('تم رفع الملف إلى المتصفح (IndexedDB)', 'success');
+  }
+
+  async function runTest(f: BookFile) {
+    setTesting((t) => ({ ...t, [f.id]: true }));
+    const res: LinkTestResult = f.provider === 'local'
+      ? { status: 'active', level: 'ok', message: '✓ ملف محلي' }
+      : await testLink(f.downloadUrl);
+    updateFile(f.id, { status: res.status });
+    setTesting((t) => ({ ...t, [f.id]: false }));
+    toast(res.message, res.level === 'ok' ? 'success' : res.level === 'warn' ? 'info' : 'error');
   }
 
   function addContributor() {
@@ -154,7 +209,9 @@ export default function BookForm() {
   }
 
   const hasCover = Boolean(form.coverAssetId || form.coverUrl || seedCover);
-  const hasResource = Boolean(form.fileAssetId || form.fileUrl || (existing && existing.chapters.length > 0));
+  const filesWithUrl = form.files.filter((f) => f.downloadUrl.trim() || f.assetId);
+  const hasChapters = Boolean(existing && existing.chapters.length > 0);
+  const hasResource = filesWithUrl.length > 0 || hasChapters;
 
   function validate(forPublish: boolean): string[] {
     const errs: string[] = [];
@@ -163,7 +220,12 @@ export default function BookForm() {
     if (authors.length === 0) errs.push('يجب إضافة مؤلف واحد على الأقل.');
     if (form.categorySlugs.length === 0) errs.push('اختر تصنيفًا واحدًا على الأقل.');
     if (form.coverUrl && !isValidUrl(form.coverUrl)) errs.push('رابط الغلاف غير صالح.');
-    if (form.fileUrl && !isValidUrl(form.fileUrl)) errs.push('رابط الملف غير صالح.');
+    // per-file URL validation
+    for (const f of form.files) {
+      if (f.provider === 'local') continue;
+      if (f.downloadUrl && !isValidHttpUrl(f.downloadUrl).ok) errs.push(`رابط التحميل غير صالح (${f.fileType.toUpperCase()}).`);
+      if (f.readUrl && !isValidHttpUrl(f.readUrl).ok) errs.push(`رابط القراءة غير صالح (${f.fileType.toUpperCase()}).`);
+    }
     // slug uniqueness
     const slug = slugify(form.slug || form.title);
     const dupe = snap.records.some((r) => r.slug === slug && r.id !== id);
@@ -171,8 +233,24 @@ export default function BookForm() {
     if (forPublish) {
       if (!hasCover) errs.push('يجب توفير غلاف قبل النشر.');
       if (!hasResource) errs.push('يجب توفير ملف (PDF/EPUB) أو رابط خارجي قبل النشر.');
+      if (filesWithUrl.length > 0 && !form.rightsConfirmed) errs.push('يجب تأكيد امتلاك حقوق التوزيع قبل نشر الملفات.');
     }
     return errs;
+  }
+
+  function cleanFiles(): BookFile[] {
+    const files = form.files.filter((f) => f.downloadUrl.trim() || f.assetId);
+    if (files.length > 0 && !files.some((f) => f.isPrimary)) files[0].isPrimary = true;
+    const now = new Date().toISOString();
+    return files.map((f) => ({
+      ...f,
+      downloadUrl: f.downloadUrl.trim(),
+      readUrl: f.readUrl?.trim() || undefined,
+      fileName: f.fileName || (f.downloadUrl ? f.downloadUrl.split('/').pop()?.split('?')[0] : undefined),
+      provider: f.provider,
+      updatedAt: now,
+      createdAt: f.createdAt ?? now,
+    }));
   }
 
   function buildRecord(status: BookStatus): Omit<BookRecord, 'id'> {
@@ -199,9 +277,12 @@ export default function BookForm() {
       visibility: form.visibility,
       coverUrl: form.coverUrl.trim() || undefined,
       coverAssetId: form.coverAssetId,
-      fileUrl: form.fileUrl.trim() || undefined,
-      fileAssetId: form.fileAssetId,
-      fileMeta: form.fileMeta,
+      files: cleanFiles(),
+      rightsConfirmed: form.rightsConfirmed,
+      // legacy single-file fields intentionally cleared (migrated into `files`)
+      fileUrl: undefined,
+      fileAssetId: undefined,
+      fileMeta: undefined,
     };
   }
 
@@ -373,30 +454,95 @@ export default function BookForm() {
           </section>
 
           <section className="admin-card">
-            <h2 className="form-section-title"><FileText size={17} /> ملف الكتاب</h2>
-            {form.fileMeta ? (
-              <div className="file-chip">
-                <FileText size={20} />
-                <div>
-                  <strong>{form.fileMeta.name}</strong>
-                  <small className="muted">{form.fileMeta.format} · {humanSize(form.fileMeta.size)}</small>
-                </div>
-                <button className="icon-btn icon-btn--danger" onClick={() => { set('fileAssetId', undefined); set('fileMeta', undefined); }}><X size={15} /></button>
-              </div>
-            ) : (
-              <Dropzone accept=".pdf,.epub" hint="PDF / EPUB" icon={<FileText size={24} />} onFile={onFile} />
+            <h2 className="form-section-title"><FileText size={17} /> 📁 ملفات الكتاب</h2>
+            <p className="muted" style={{ marginTop: -6, marginBottom: 12, fontSize: 13 }}>
+              أضف PDF و/أو EPUB على أي مستضيف خارجي. لا تُخزَّن الملفات الكبيرة داخل الموقع.
+            </p>
+
+            {form.files.length === 0 && (
+              <p className="muted" style={{ marginBottom: 12 }}>لا توجد ملفات بعد.</p>
             )}
-            <div className="or-sep"><span>أو رابط خارجي (لا تستخدم روابط وهمية)</span></div>
-            <input
-              className="mono-input"
-              dir="ltr"
-              value={form.fileUrl}
-              onChange={(e) => { set('fileUrl', e.target.value); set('fileAssetId', undefined); set('fileMeta', undefined); }}
-              placeholder="https://…/book.pdf"
-            />
-            {existing && existing.chapters.length > 0 && (
+
+            <div className="filecard-list">
+              {form.files.map((f) => {
+                const statusChip = f.status === 'active'
+                  ? <span className="chip chip--ok">✓ صالح</span>
+                  : f.status === 'broken'
+                    ? <span className="chip chip--warn">⚠️ رابط غير صالح</span>
+                    : <span className="chip">⚠️ للتحقق</span>;
+                return (
+                  <div className="filecard" key={f.id}>
+                    <div className="filecard-head">
+                      <label className="filecard-primary" title="الملف الرئيسي">
+                        <input type="radio" name="primaryFile" checked={Boolean(f.isPrimary)} onChange={() => setPrimaryFile(f.id)} />
+                        <Star size={14} className={f.isPrimary ? 'txt-amber' : ''} />
+                      </label>
+                      {statusChip}
+                      <button className="icon-btn icon-btn--danger" style={{ marginInlineStart: 'auto' }} onClick={() => removeFile(f.id)}><Trash2 size={15} /></button>
+                    </div>
+                    <div className="field-row">
+                      <label className="field"><span className="field-label">الصيغة</span>
+                        <select value={f.fileType} onChange={(e) => updateFile(f.id, { fileType: e.target.value as BookFileType })}>
+                          <option value="pdf">PDF</option>
+                          <option value="epub">EPUB</option>
+                        </select>
+                      </label>
+                      <label className="field"><span className="field-label">المستضيف</span>
+                        <select value={f.provider} onChange={(e) => updateFile(f.id, { provider: e.target.value as StorageProvider })} disabled={f.provider === 'local'}>
+                          {PROVIDERS.filter((p) => p.id !== 'local').map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                          {f.provider === 'local' && <option value="local">تم رفعه (محلي)</option>}
+                        </select>
+                      </label>
+                    </div>
+                    {f.provider === 'local' ? (
+                      <div className="file-chip" style={{ marginTop: 6 }}>
+                        <FileText size={18} />
+                        <div>
+                          <strong>{f.fileName}</strong>
+                          <small className="muted">{f.fileType.toUpperCase()}{f.fileSize ? ` · ${humanSize(f.fileSize)}` : ''}</small>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <label className="field"><span className="field-label">رابط التحميل (download_url)</span>
+                          <div className="input-with-btn">
+                            <input className="mono-input" dir="ltr" value={f.downloadUrl}
+                              onChange={(e) => updateFile(f.id, { downloadUrl: e.target.value, provider: providerFromUrl(e.target.value), fileType: fileTypeFromUrl(e.target.value) ?? f.fileType, status: 'unverified' })}
+                              placeholder="https://…" />
+                            <button className="btn btn-outline btn-sm" onClick={() => runTest(f)} disabled={testing[f.id] || !f.downloadUrl}>
+                              {testing[f.id] ? <Loader2 size={14} className="spin" /> : <Search size={14} />} اختبار
+                            </button>
+                          </div>
+                        </label>
+                        <label className="field"><span className="field-label">رابط القراءة (اختياري)</span>
+                          <input className="mono-input" dir="ltr" value={f.readUrl ?? ''}
+                            onChange={(e) => updateFile(f.id, { readUrl: e.target.value })} placeholder="https://… (قراءة أونلاين)" />
+                        </label>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="row wrap" style={{ gap: 8, marginTop: 12 }}>
+              <button className="btn btn-outline btn-sm" onClick={addFileLink}><Plus size={15} /> إضافة رابط ملف</button>
+              <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
+                <UploadCloud size={15} /> رفع محلي (IndexedDB)
+                <input type="file" accept=".pdf,.epub" hidden onChange={(e) => e.target.files && onUploadFile(e.target.files[0])} />
+              </label>
+            </div>
+
+            {filesWithUrl.length > 0 && (
+              <label className={`rights-box ${form.rightsConfirmed ? 'is-on' : ''}`}>
+                <input type="checkbox" checked={form.rightsConfirmed} onChange={(e) => set('rightsConfirmed', e.target.checked)} />
+                <span>أؤكد امتلاكي الحقوق اللازمة لتوزيع هذا الملف، والتزامي بشروط المستضيف وحقوق النشر.</span>
+              </label>
+            )}
+
+            {hasChapters && (
               <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
-                يحتوي هذا الكتاب على {existing.chapters.length} فصل قراءة خارجي محفوظ.
+                يحتوي هذا الكتاب على {existing?.chapters.length} فصل قراءة خارجي محفوظ.
               </p>
             )}
           </section>

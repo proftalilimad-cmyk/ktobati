@@ -79,7 +79,11 @@ class LibraryStore {
     this.snap = this.build();
     // preload uploaded assets, then refresh snapshot so covers/files resolve
     const ids = this.data.records.flatMap((r) =>
-      [r.coverAssetId, r.fileAssetId].filter(Boolean) as string[],
+      [
+        r.coverAssetId,
+        r.fileAssetId,
+        ...(r.files ?? []).map((f) => f.assetId),
+      ].filter(Boolean) as string[],
     );
     if (ids.length) {
       preloadAssets(ids).then(() => this.commit(false));
@@ -206,6 +210,9 @@ class LibraryStore {
     if (!rec) return;
     if (rec.coverAssetId) await deleteAsset(rec.coverAssetId).catch(() => {});
     if (rec.fileAssetId) await deleteAsset(rec.fileAssetId).catch(() => {});
+    for (const f of rec.files ?? []) {
+      if (f.assetId) await deleteAsset(f.assetId).catch(() => {});
+    }
     this.data.records = this.data.records.filter((r) => r.id !== id);
     this.log('delete', 'حذف كتاب', rec.title);
     this.commit();

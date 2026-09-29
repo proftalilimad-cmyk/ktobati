@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ExternalLink, Search, BookOpen, Download } from 'lucide-react';
 import { useAdminLibrary } from '../../store/useLibrary';
+import { PROVIDER_LABEL } from '../../store/links';
 import { normalizeAr } from '../../utils/search';
 
 interface LinkRow {
@@ -18,8 +19,10 @@ export default function LinksAdmin() {
   const links = useMemo<LinkRow[]>(() => {
     const out: LinkRow[] = [];
     for (const b of snap.allBooks) {
-      if (b.pdf) out.push({ bookId: b.id, bookTitle: b.title, kind: 'download', label: 'PDF', url: b.pdf });
-      if (b.epub) out.push({ bookId: b.id, bookTitle: b.title, kind: 'download', label: 'ePub', url: b.epub });
+      for (const f of b.files) {
+        if (f.downloadUrl) out.push({ bookId: b.id, bookTitle: b.title, kind: 'download', label: `${f.fileType.toUpperCase()} · ${PROVIDER_LABEL[f.provider]}`, url: f.downloadUrl });
+        if (f.readUrl) out.push({ bookId: b.id, bookTitle: b.title, kind: 'read', label: `قراءة ${f.fileType.toUpperCase()}`, url: f.readUrl });
+      }
       for (const ch of b.chapters) out.push({ bookId: b.id, bookTitle: b.title, kind: 'read', label: ch.title, url: ch.url });
     }
     return out;

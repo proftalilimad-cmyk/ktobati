@@ -14,6 +14,41 @@ export interface Chapter {
 export type BookStatus = 'draft' | 'published' | 'archived';
 export type Visibility = 'public' | 'private';
 
+/** External storage providers for book files (PDF/EPUB). Extensible. */
+export type StorageProvider =
+  | 'onedrive'
+  | 'up4ever'
+  | 'fileink'
+  | 'rapidfiles'
+  | 'filefire'
+  | 'supabase'
+  | 'local'
+  | 'external';
+
+export type BookFileType = 'pdf' | 'epub';
+export type LinkStatus = 'active' | 'unverified' | 'broken';
+
+/** A single downloadable/readable file for a book, hosted anywhere. */
+export interface BookFile {
+  id: string;
+  provider: StorageProvider;
+  fileType: BookFileType;
+  fileName?: string;
+  fileSize?: number;
+  /** real download URL provided by the admin / provider (never faked) */
+  downloadUrl: string;
+  /** optional online-reading URL */
+  readUrl?: string;
+  /** optional provider-specific file id (e.g. OneDrive item id) */
+  externalFileId?: string;
+  /** id of an uploaded blob in IndexedDB (provider === 'local') */
+  assetId?: string;
+  isPrimary?: boolean;
+  status?: LinkStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface FileMeta {
   name: string;
   size: number;
@@ -50,11 +85,15 @@ export interface BookRecord {
   coverUrl?: string;
   /** id of an uploaded cover blob in IndexedDB */
   coverAssetId?: string;
-  /** external file URL (PDF/EPUB hosted elsewhere) */
+  /** external file URL (PDF/EPUB hosted elsewhere) — LEGACY, kept for migration */
   fileUrl?: string;
-  /** id of an uploaded book file blob in IndexedDB */
+  /** id of an uploaded book file blob in IndexedDB — LEGACY */
   fileAssetId?: string;
   fileMeta?: FileMeta;
+  /** NEW: one or more files (PDF/EPUB) hosted on external providers */
+  files?: BookFile[];
+  /** admin confirmed they hold distribution rights before publishing files */
+  rightsConfirmed?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -64,6 +103,8 @@ export interface Book extends BookRecord {
   authorId: string;
   cover: string;
   coverLarge: string;
+  /** resolved, ready-to-use file list (migrated from legacy/seed when needed) */
+  files: BookFile[];
   pdf: string;
   epub: string;
   kfx: string;

@@ -1,5 +1,6 @@
-import type { Author, AuthorMeta, Book, BookRecord } from '../data/types';
+import type { Author, AuthorMeta, Book, BookFile, BookRecord } from '../data/types';
 import { assetUrl } from './assets';
+import { providerFromUrl } from './links';
 
 const CDN = 'https://downloads.hindawi.org';
 const SRC = 'https://www.safahat.org';
@@ -34,25 +35,74 @@ export function normalizeAr(input: string): string {
 
 const isHindawiId = (id: string) => /^\d{6,}$/.test(id);
 
+/**
+ * Resolve the file list for a book. Prefers the new `files[]`; otherwise
+ * migrates legacy single-file fields; seed books derive from their Hindawi id.
+ * This is non-destructive — the stored record keeps its original fields.
+ */
+export function resolveFiles(r: BookRecord): BookFile[] {
+  // 1) new multi-file model
+  if (r.files && r.files.length > 0) {
+    return r.files.map((f) => ({
+      ...f,
+      downloadUrl: f.provider === 'local' && f.assetId ? assetUrl(f.assetId) || f.downloadUrl : f.downloadUrl,
+    }));
+  }
+
+  const out: BookFile[] = [];
+  // 2) legacy uploaded blob
+  const uploadedFile = assetUrl(r.fileAssetId);
+  if (r.fileAssetId) {
+    const fmt = (r.fileMeta?.format ?? '').toLowerCase();
+    out.push({
+      id: `legacy-local-${r.id}`,
+      provider: 'local',
+      fileType: fmt.includes('epub') ? 'epub' : 'pdf',
+      fileName: r.fileMeta?.name,
+      fileSize: r.fileMeta?.size,
+      downloadUrl: uploadedFile,
+      assetId: r.fileAssetId,
+      isPrimary: true,
+      status: 'active',
+    });
+  }
+  // 3) legacy external URL
+  if (r.fileUrl) {
+    out.push({
+      id: `legacy-url-${r.id}`,
+      provider: providerFromUrl(r.fileUrl),
+      fileType: /\.epub($|\?)/i.test(r.fileUrl) ? 'epub' : 'pdf',
+      downloadUrl: r.fileUrl,
+      isPrimary: out.length === 0,
+      status: 'unverified',
+    });
+  }
+  // 4) seed (Hindawi) — real canonical file URLs derived from id
+  if (out.length === 0 && isHindawiId(r.id)) {
+    out.push(
+      { id: `seed-pdf-${r.id}`, provider: 'external', fileType: 'pdf', downloadUrl: `${CDN}/books/${r.id}.pdf`, isPrimary: true, status: 'active' },
+      { id: `seed-epub-${r.id}`, provider: 'external', fileType: 'epub', downloadUrl: `${CDN}/books/${r.id}.epub`, status: 'active' },
+    );
+  }
+  return out;
+}
+
 export function toBook(r: BookRecord): Book {
   const primary = r.contributors.find((c) => c.role === 'author') ?? r.contributors[0];
   const seedCover = isHindawiId(r.id) ? `${CDN}/covers/svg/270x360/${r.id}.svg` : '';
   const uploadedCover = assetUrl(r.coverAssetId);
   const cover = uploadedCover || r.coverUrl || seedCover || '';
 
-  const seedPdf = isHindawiId(r.id) ? `${CDN}/books/${r.id}.pdf` : '';
-  const seedEpub = isHindawiId(r.id) ? `${CDN}/books/${r.id}.epub` : '';
+  const files = resolveFiles(r).filter((f) => f.downloadUrl);
+  const pdfFile = files.find((f) => f.fileType === 'pdf');
+  const epubFile = files.find((f) => f.fileType === 'epub');
   const seedKfx = isHindawiId(r.id) ? `${CDN}/books/${r.id}.kfx` : '';
-  const uploadedFile = assetUrl(r.fileAssetId);
-
-  const pdf = uploadedFile || (r.fileUrl && /\.pdf($|\?)/i.test(r.fileUrl) ? r.fileUrl : '') || seedPdf;
-  const epub = (r.fileUrl && /\.epub($|\?)/i.test(r.fileUrl) ? r.fileUrl : '') || seedEpub;
-  const genericFile = r.fileUrl || uploadedFile;
 
   const firstChapter = r.chapters[0]?.url;
+  const fileReadUrl = files.find((f) => f.readUrl)?.readUrl;
   const sourceUrl = isHindawiId(r.id) ? `${SRC}/books/${r.id}/` : '';
-  const hasDownload = Boolean(pdf || epub || genericFile);
-  const hasRead = Boolean(firstChapter || pdf || genericFile);
+  const hasDownload = files.length > 0;
+  const hasRead = Boolean(firstChapter || fileReadUrl || pdfFile?.downloadUrl);
 
   return {
     ...r,
@@ -63,8 +113,9 @@ export function toBook(r: BookRecord): Book {
     authorId: primary?.id ?? 'unknown',
     cover,
     coverLarge: cover,
-    pdf: pdf || genericFile || '',
-    epub,
+    files,
+    pdf: pdfFile?.downloadUrl ?? '',
+    epub: epubFile?.downloadUrl ?? '',
     kfx: seedKfx,
     sourceUrl,
     hasRead,

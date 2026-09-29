@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, Users, Tags, FileEdit, CheckCircle2, Archive, PlusCircle, Upload, Clock, TrendingUp } from 'lucide-react';
+import { BookOpen, Users, Tags, FileEdit, CheckCircle2, Archive, PlusCircle, Upload, Clock, TrendingUp, FileText, Link2 } from 'lucide-react';
 import { useAdminLibrary } from '../../store/useLibrary';
 import { useAdminPath } from '../base';
 import { StatusBadge } from '../components/StatusBadge';
@@ -22,6 +22,12 @@ export default function Dashboard() {
   const drafts = books.filter((b) => b.status === 'draft').length;
   const archived = books.filter((b) => b.status === 'archived').length;
 
+  const allFiles = books.flatMap((b) => b.files);
+  const pdfCount = allFiles.filter((f) => f.fileType === 'pdf').length;
+  const epubCount = allFiles.filter((f) => f.fileType === 'epub').length;
+  const activeLinks = allFiles.filter((f) => f.status === 'active').length;
+  const toVerifyLinks = allFiles.filter((f) => f.status !== 'active').length;
+
   const stats = [
     { icon: <BookOpen size={20} />, value: books.length, label: 'إجمالي الكتب', color: 'teal' },
     { icon: <Users size={20} />, value: snap.authors.length, label: 'المؤلفون', color: 'blue' },
@@ -29,6 +35,10 @@ export default function Dashboard() {
     { icon: <CheckCircle2 size={20} />, value: published, label: 'منشور', color: 'green' },
     { icon: <FileEdit size={20} />, value: drafts, label: 'مسودات', color: 'amber' },
     { icon: <Archive size={20} />, value: archived, label: 'مؤرشف', color: 'slate' },
+    { icon: <FileText size={20} />, value: pdfCount, label: 'ملفات PDF', color: 'teal' },
+    { icon: <FileText size={20} />, value: epubCount, label: 'ملفات EPUB', color: 'blue' },
+    { icon: <Link2 size={20} />, value: activeLinks, label: 'روابط نشطة', color: 'green' },
+    { icon: <Link2 size={20} />, value: toVerifyLinks, label: 'روابط للتحقق', color: 'amber' },
   ];
 
   const recent = [...snap.records]

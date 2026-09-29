@@ -218,6 +218,23 @@
 .file-chip small { display: block; }
 .file-chip .icon-btn { margin-inline-start: auto; }
 
+/* ---------------- files manager ---------------- */
+.filecard-list { display: flex; flex-direction: column; gap: 12px; }
+.filecard { border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; background: var(--ink-50); }
+.filecard-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.filecard-primary { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-size: .78rem; }
+.filecard-primary input { width: auto; }
+.txt-amber { color: var(--accent); }
+.input-with-btn { display: flex; gap: 8px; align-items: stretch; }
+.input-with-btn .mono-input { flex: 1; }
+.input-with-btn .btn { white-space: nowrap; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.rights-box { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; padding: 12px; border: 1px dashed var(--border); border-radius: var(--r-md); font-size: .84rem; line-height: 1.5; cursor: pointer; background: var(--white); }
+.rights-box.is-on { border-color: #16a34a; background: #f0fdf4; }
+.rights-box input { width: auto; margin-top: 3px; }
+
 /* ---------------- dropzone ---------------- */
 .dropzone {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;

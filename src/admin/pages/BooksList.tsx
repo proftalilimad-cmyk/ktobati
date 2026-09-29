@@ -8,7 +8,8 @@ import { StatusBadge, VisibilityBadge } from '../components/StatusBadge';
 import Modal from '../components/Modal';
 import Cover from '../../components/Cover';
 import { normalizeAr } from '../../utils/search';
-import type { BookStatus } from '../../data/types';
+import { PROVIDER_LABEL } from '../../store/links';
+import type { BookStatus, StorageProvider, BookFileType } from '../../data/types';
 
 export default function BooksList() {
   const { snap, store } = useAdminLibrary();
@@ -17,6 +18,8 @@ export default function BooksList() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<'all' | BookStatus>('all');
   const [cat, setCat] = useState('all');
+  const [provider, setProvider] = useState<'all' | StorageProvider>('all');
+  const [format, setFormat] = useState<'all' | BookFileType>('all');
   const [toDelete, setToDelete] = useState<string | null>(null);
 
   const catName = (slug: string) => snap.categories.find((c) => c.slug === slug)?.name ?? slug;
@@ -26,13 +29,16 @@ export default function BooksList() {
     return snap.allBooks.filter((b) => {
       if (status !== 'all' && b.status !== status) return false;
       if (cat !== 'all' && !b.categorySlugs.includes(cat)) return false;
+      if (provider !== 'all' && !b.files.some((f) => f.provider === provider)) return false;
+      if (format !== 'all' && !b.files.some((f) => f.fileType === format)) return false;
       if (!n) return true;
+      const urls = b.files.map((f) => `${f.downloadUrl} ${f.readUrl ?? ''}`).join(' ');
       const hay = normalizeAr(
-        [b.title, b.authorName, b.categorySlugs.map(catName).join(' '), b.isbn ?? '', b.id, b.fileUrl ?? '', b.slug].join(' '),
+        [b.title, b.authorName, b.categorySlugs.map(catName).join(' '), b.isbn ?? '', b.id, urls, b.slug].join(' '),
       );
       return hay.includes(n);
     });
-  }, [snap.allBooks, q, status, cat]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [snap.allBooks, q, status, cat, provider, format]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const target = snap.records.find((r) => r.id === toDelete);
 
@@ -78,6 +84,15 @@ export default function BooksList() {
           <option value="all">كل التصنيفات</option>
           {snap.categories.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
         </select>
+        <select value={provider} onChange={(e) => setProvider(e.target.value as typeof provider)}>
+          <option value="all">كل المستضيفين</option>
+          {(Object.keys(PROVIDER_LABEL) as StorageProvider[]).map((p) => <option key={p} value={p}>{PROVIDER_LABEL[p]}</option>)}
+        </select>
+        <select value={format} onChange={(e) => setFormat(e.target.value as typeof format)}>
+          <option value="all">كل الصيغ</option>
+          <option value="pdf">PDF</option>
+          <option value="epub">EPUB</option>
+        </select>
       </div>
 
       <div className="admin-table-wrap">
@@ -88,6 +103,8 @@ export default function BooksList() {
               <th>العنوان</th>
               <th>المؤلف</th>
               <th>التصنيف</th>
+              <th>التخزين</th>
+              <th>الرابط</th>
               <th>الحالة</th>
               <th>الظهور</th>
               <th>إجراءات</th>
@@ -107,6 +124,26 @@ export default function BooksList() {
                 <td>
                   {b.categorySlugs.map((s) => <span key={s} className="chip">{catName(s)}</span>)}
                 </td>
+                <td>
+                  {b.files.length === 0 ? (
+                    <span className="muted">—</span>
+                  ) : (
+                    b.files.map((f) => (
+                      <span key={f.id} className="chip">{f.fileType.toUpperCase()} · {PROVIDER_LABEL[f.provider]}</span>
+                    ))
+                  )}
+                </td>
+                <td>
+                  {b.files.length === 0 ? (
+                    <span className="muted">—</span>
+                  ) : b.files.some((f) => f.status === 'broken') ? (
+                    <span className="chip chip--warn">⚠️ غير صالح</span>
+                  ) : b.files.every((f) => f.status === 'active') ? (
+                    <span className="chip chip--ok">✓ صالح</span>
+                  ) : (
+                    <span className="chip">⚠️ للتحقق</span>
+                  )}
+                </td>
                 <td><StatusBadge status={b.status} /></td>
                 <td><VisibilityBadge visibility={b.visibility} /></td>
                 <td>
@@ -120,7 +157,7 @@ export default function BooksList() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={7} className="admin-empty">لا توجد كتب مطابقة.</td></tr>
+              <tr><td colSpan={9} className="admin-empty">لا توجد كتب مطابقة.</td></tr>
             )}
           </tbody>
         </table>

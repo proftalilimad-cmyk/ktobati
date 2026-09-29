@@ -43,7 +43,10 @@ export default function BookDetails() {
   if (!book) return <NotFound />;
 
   const primaryCat = categoryBySlug(book.categorySlugs[0]);
-  const readUrl = book.chapters[0]?.url || book.sourceUrl || book.pdf || book.epub;
+  const fileReadUrl = book.files.find((f) => f.readUrl)?.readUrl;
+  const readUrl = book.chapters[0]?.url || fileReadUrl || book.sourceUrl;
+  const downloads = book.files.filter((f) => f.downloadUrl);
+  const fileLabel = (t: string) => (t === 'epub' ? 'تحميل EPUB' : 'تحميل PDF');
   const related = books
     .filter((b) => b.id !== book.id && b.categorySlugs.some((s) => book.categorySlugs.includes(s)))
     .slice(0, 6);
@@ -111,19 +114,14 @@ export default function BookDetails() {
             <div className="book-hero-actions">
               {book.hasRead && readUrl && (
                 <a href={readUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
-                  <BookOpen size={18} /> قراءة الكتاب
+                  <BookOpen size={18} /> {book.chapters.length > 0 ? 'قراءة الكتاب' : 'قراءة أونلاين'}
                 </a>
               )}
-              {book.pdf && (
-                <a href={book.pdf} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
-                  <Download size={18} /> تحميل PDF
+              {downloads.map((f) => (
+                <a key={f.id} href={f.downloadUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
+                  {f.fileType === 'epub' ? <FileText size={18} /> : <Download size={18} />} {fileLabel(f.fileType)}
                 </a>
-              )}
-              {book.epub && (
-                <a href={book.epub} target="_blank" rel="noopener noreferrer" className="btn btn-outline">
-                  <FileText size={18} /> تحميل ePub
-                </a>
-              )}
+              ))}
               {!book.hasRead && !book.hasDownload && (
                 <span className="muted">لا تتوفر نسخة رقمية للقراءة أو التحميل حاليًا.</span>
               )}
@@ -204,15 +202,14 @@ export default function BookDetails() {
               </dl>
               {book.hasDownload ? (
                 <div className="info-downloads">
-                  {book.pdf && (
-                    <a href={book.pdf} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-block">
-                      <Download size={17} /> تحميل PDF
+                  {downloads.map((f) => (
+                    <a key={f.id} href={f.downloadUrl} target="_blank" rel="noopener noreferrer" className={`btn ${f.isPrimary ? 'btn-primary' : 'btn-outline'} btn-block`}>
+                      <Download size={17} /> {fileLabel(f.fileType)}
                     </a>
-                  )}
-                  {(book.epub || book.kfx) && (
+                  ))}
+                  {book.kfx && (
                     <div className="info-downloads-row">
-                      {book.epub && <a href={book.epub} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">ePub</a>}
-                      {book.kfx && <a href={book.kfx} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">Kindle</a>}
+                      <a href={book.kfx} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">Kindle</a>
                     </div>
                   )}
                 </div>

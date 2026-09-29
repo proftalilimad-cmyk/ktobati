@@ -28,6 +28,21 @@ do $$ begin
   create type contributor_role as enum ('author', 'translator', 'reviewer');
 exception when duplicate_object then null; end $$;
 
+-- External storage providers for book files (extensible — add values as needed)
+do $$ begin
+  create type storage_provider as enum (
+    'onedrive', 'up4ever', 'fileink', 'rapidfiles', 'filefire', 'supabase', 'local', 'external'
+  );
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type book_file_type as enum ('pdf', 'epub');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type link_status as enum ('active', 'unverified', 'broken');
+exception when duplicate_object then null; end $$;
+
 -- ---------------------------------------------------------------------------
 -- Helper: is the current user an admin?
 --   Store admin user ids in `admins`, or adapt to a JWT claim / role.
@@ -94,6 +109,12 @@ create table if not exists public.books (
   visibility    visibility  not null default 'public',
   cover_url     text,               -- external cover, or public URL of uploaded cover
   cover_path    text,               -- storage path in `book-covers` bucket
+  -- convenience denormalised pointers to the PRIMARY file (optional; the full
+  -- list lives in book_files). Kept to match the frontend record shape.
+  storage_provider storage_provider,
+  download_url  text,
+  read_url      text,
+  rights_confirmed boolean not null default false,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -131,19 +152,29 @@ create table if not exists public.book_chapters (
 );
 create index if not exists book_chapters_book_idx on public.book_chapters (book_id);
 
--- Downloadable / linked files (uploaded to storage OR external URL)
+-- Downloadable / linked files (external provider URL OR uploaded to storage)
+-- A book may have several files simultaneously (e.g. PDF on FileInk + EPUB on OneDrive).
 create table if not exists public.book_files (
-  id          bigint generated always as identity primary key,
-  book_id     uuid not null references public.books (id) on delete cascade,
-  format      text not null,               -- PDF / EPUB / ...
-  name        text,
-  size_bytes  bigint,
-  url         text,                         -- external URL (mutually exclusive with path)
-  storage_path text,                        -- path in `book-files` bucket
-  created_at  timestamptz not null default now(),
-  check (url is not null or storage_path is not null)
+  id            bigint generated always as identity primary key,
+  book_id       uuid not null references public.books (id) on delete cascade,
+  provider      storage_provider not null default 'external',
+  file_type     book_file_type not null,     -- pdf / epub
+  file_name     text,
+  file_size     bigint,
+  download_url  text,                         -- real download URL (never faked)
+  read_url      text,                         -- optional online-reading URL
+  external_file_id text,                      -- e.g. OneDrive item id
+  storage_path  text,                         -- path in `book-files` bucket (provider='supabase')
+  is_primary    boolean not null default false,
+  status        link_status not null default 'unverified',
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now(),
+  check (download_url is not null or storage_path is not null)
 );
 create index if not exists book_files_book_idx on public.book_files (book_id);
+-- exactly one primary file per book (optional hardening):
+create unique index if not exists book_files_one_primary
+  on public.book_files (book_id) where (is_primary);
 
 -- Optional: cover assets history
 create table if not exists public.book_covers (
@@ -179,6 +210,9 @@ create trigger trg_categories_touch before update on public.categories
   for each row execute function public.touch_updated_at();
 drop trigger if exists trg_authors_touch on public.authors;
 create trigger trg_authors_touch before update on public.authors
+  for each row execute function public.touch_updated_at();
+drop trigger if exists trg_book_files_touch on public.book_files;
+create trigger trg_book_files_touch before update on public.book_files
   for each row execute function public.touch_updated_at();
 
 -- ============================================================================
