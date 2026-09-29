@@ -275,3 +275,39 @@ export async function upsertCategoryToSupabase(cat: Category): Promise<boolean> 
     return false;
   }
 }
+
+// ---------------------------------------------------------------------------
+//  Auth (real admin sessions). Only used when Supabase is configured; the app
+//  otherwise falls back to the front-end-only demo gate. A successful sign-in
+//  is what lets RLS accept admin writes (user id must be in the `admins` table).
+// ---------------------------------------------------------------------------
+export interface AuthResult { ok: boolean; email?: string; error?: string }
+
+export async function signInWithPassword(email: string, password: string): Promise<AuthResult> {
+  const sb = await getSupabase();
+  if (!sb) return { ok: false, error: 'Supabase غير مُهيّأ' };
+  try {
+    const { data, error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, email: data.user?.email ?? email.trim() };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+export async function signOutSupabase(): Promise<void> {
+  const sb = await getSupabase();
+  if (!sb) return;
+  try { await sb.auth.signOut(); } catch { /* ignore */ }
+}
+
+export async function getCurrentEmail(): Promise<string | null> {
+  const sb = await getSupabase();
+  if (!sb) return null;
+  try {
+    const { data } = await sb.auth.getSession();
+    return data.session?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}

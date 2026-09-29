@@ -5,20 +5,24 @@ import { useAdminAuth, DEMO_CREDENTIALS } from '../AdminAuth';
 import { useAdminBase } from '../base';
 
 export default function Login() {
-  const { login, isAuthed, usingDemoCreds } = useAdminAuth();
+  const { login, isAuthed, usingDemoCreds, usingSupabaseAuth } = useAdminAuth();
   const base = useAdminBase();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   if (isAuthed) {
     return <Navigate to={base} replace />;
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const res = login(email, password);
+    setError('');
+    setBusy(true);
+    const res = await login(email, password);
+    setBusy(false);
     if (res.ok) navigate(base, { replace: true });
     else setError(res.error ?? 'تعذّر تسجيل الدخول');
   }
@@ -68,7 +72,15 @@ export default function Login() {
           </span>
         </label>
 
-        <button type="submit" className="btn btn-primary btn-block">دخول</button>
+        <button type="submit" className="btn btn-primary btn-block" disabled={busy}>
+          {busy ? 'جارٍ التحقق…' : 'دخول'}
+        </button>
+
+        {usingSupabaseAuth && (
+          <p className="muted admin-auth-mode">
+            🔐 مصادقة حقيقية عبر Supabase Auth
+          </p>
+        )}
 
         {usingDemoCreds && (
           <div className="admin-demo-hint">

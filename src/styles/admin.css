@@ -264,6 +264,7 @@
 .admin-login-brand .admin-brand-mark { margin: 0 auto 12px; width: 52px; height: 52px; }
 .admin-login-brand h1 { font-size: 1.35rem; }
 .admin-login-brand p { font-size: .86rem; }
+.admin-auth-mode { text-align: center; font-size: .8rem; margin: 4px 0 0; }
 .admin-demo-hint { display: flex; flex-direction: column; gap: 3px; padding: 12px; border-radius: var(--r-md); background: var(--ink-50); border: 1px dashed var(--border); font-size: .82rem; }
 .admin-demo-hint code { background: var(--white); padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); }
 
