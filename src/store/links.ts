@@ -138,3 +138,60 @@ export function fileTypeFromUrl(url: string): 'pdf' | 'epub' | undefined {
   if (/\.epub($|\?)/i.test(url)) return 'epub';
   return undefined;
 }
+
+/** Extract a human file name from a URL path (never invents one). */
+export function fileNameFromUrl(url: string): string | undefined {
+  try {
+    const last = new URL(url).pathname.split('/').filter(Boolean).pop();
+    if (!last) return undefined;
+    const name = decodeURIComponent(last);
+    return /\.(pdf|epub)$/i.test(name) ? name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export interface LinkMeta {
+  fileName?: string;
+  fileSize?: number;
+  fileType?: 'pdf' | 'epub';
+  contentType?: string;
+  /** true only when the host allowed reading real HTTP headers (CORS) */
+  headersRead: boolean;
+}
+
+/**
+ * Fetch REAL metadata about the book file after the link is verified.
+ * - Always derives file name + type from the URL itself (deterministic, honest).
+ * - Best-effort: tries a CORS request to read the real Content-Length /
+ *   Content-Type / Content-Disposition. Most hosts (OneDrive, Up-4ever) block
+ *   cross-origin header reads — in that case we simply keep the URL-derived
+ *   values and NEVER invent a size. `headersRead` reports whether it succeeded.
+ */
+export async function fetchLinkMeta(url: string): Promise<LinkMeta> {
+  const meta: LinkMeta = { headersRead: false };
+  const name = fileNameFromUrl(url);
+  if (name) meta.fileName = name;
+  meta.fileType = fileTypeFromUrl(url);
+
+  try {
+    const res = await fetch(url.trim(), { method: 'GET', mode: 'cors', headers: { Range: 'bytes=0-0' }, signal: AbortSignal.timeout?.(8000) });
+    const len = res.headers.get('content-range')?.split('/').pop() || res.headers.get('content-length');
+    const ct = res.headers.get('content-type');
+    const cd = res.headers.get('content-disposition');
+    if (len && /^\d+$/.test(len)) meta.fileSize = Number(len) || undefined;
+    if (ct) {
+      meta.contentType = ct;
+      if (/pdf/i.test(ct)) meta.fileType = 'pdf';
+      else if (/epub/i.test(ct)) meta.fileType = 'epub';
+    }
+    if (cd) {
+      const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+      if (m) meta.fileName = decodeURIComponent(m[1]);
+    }
+    meta.headersRead = true;
+  } catch {
+    /* CORS / unreachable — keep URL-derived values, never fake a size */
+  }
+  return meta;
+}

@@ -7,7 +7,7 @@ import { useToast } from '../Toast';
 import Dropzone from '../components/Dropzone';
 import { putAsset } from '../../store/assets';
 import { slugify, resolveFiles } from '../../store/derive';
-import { SELECTABLE_PROVIDERS, PROVIDER_LABEL, PROVIDER_META, providerFromUrl, testLink, fileTypeFromUrl, isValidHttpUrl, type LinkTestResult } from '../../store/links';
+import { SELECTABLE_PROVIDERS, PROVIDER_LABEL, PROVIDER_META, providerFromUrl, testLink, fetchLinkMeta, fileTypeFromUrl, isValidHttpUrl, type LinkTestResult } from '../../store/links';
 import type { BookRecord, Contributor, BookStatus, Visibility, BookFile, StorageProvider, BookFileType } from '../../data/types';
 
 const roleLabels: Record<Contributor['role'], string> = {
@@ -164,12 +164,32 @@ export default function BookForm() {
 
   async function runTest(f: BookFile) {
     setTesting((t) => ({ ...t, [f.id]: true }));
-    const res: LinkTestResult = f.provider === 'local'
-      ? { status: 'active', level: 'ok', message: '✓ ملف محلي' }
-      : await testLink(f.downloadUrl);
-    updateFile(f.id, { status: res.status });
+    if (f.provider === 'local') {
+      updateFile(f.id, { status: 'active' });
+      setTesting((t) => ({ ...t, [f.id]: false }));
+      toast('✓ ملف محلي', 'success');
+      return;
+    }
+    // 1) verify the link
+    const res: LinkTestResult = await testLink(f.downloadUrl);
+    const patch: Partial<BookFile> = { status: res.status };
+    let message = res.message;
+    // 2) after verification, fetch real info from the book file (no faking)
+    if (res.level !== 'error') {
+      const meta = await fetchLinkMeta(f.downloadUrl);
+      if (meta.fileType) patch.fileType = meta.fileType;
+      if (meta.fileName && !f.fileName?.trim()) patch.fileName = meta.fileName;
+      if (meta.fileSize) patch.fileSize = meta.fileSize;
+      const bits: string[] = [];
+      if (patch.fileName ?? f.fileName) bits.push((patch.fileName ?? f.fileName) as string);
+      if (patch.fileType ?? f.fileType) bits.push(((patch.fileType ?? f.fileType) as string).toUpperCase());
+      if (meta.fileSize) bits.push(humanSize(meta.fileSize));
+      if (bits.length) message += ` — ${bits.join(' · ')}`;
+      if (!meta.headersRead && !meta.fileSize) message += ' (تعذّر قراءة الحجم تلقائيًا بسبب قيود المضيف)';
+    }
+    updateFile(f.id, patch);
     setTesting((t) => ({ ...t, [f.id]: false }));
-    toast(res.message, res.level === 'ok' ? 'success' : res.level === 'warn' ? 'info' : 'error');
+    toast(message, res.level === 'ok' ? 'success' : res.level === 'warn' ? 'info' : 'error');
   }
 
   function addContributor() {
@@ -543,6 +563,14 @@ export default function BookForm() {
                           <input value={f.fileName ?? ''}
                             onChange={(e) => updateFile(f.id, { fileName: e.target.value })} placeholder="مثال: كتاب-١٩٨٤.pdf" />
                         </label>
+                        {(f.fileName || f.fileSize) && (
+                          <p className="file-meta-note">
+                            <FileText size={13} /> معلومات مُستخرَجة:
+                            {' '}{f.fileType.toUpperCase()}
+                            {f.fileSize ? ` · ${humanSize(f.fileSize)}` : ''}
+                            {f.fileName ? ` · ${f.fileName}` : ''}
+                          </p>
+                        )}
                         {f.provider === 'onedrive' && (
                           <>
                             <label className="field"><span className="field-label">معرّف ملف OneDrive (اختياري)</span>

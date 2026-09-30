@@ -237,6 +237,7 @@
 .provider-help { margin: 6px 0 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--ink-700, #444); }
 .provider-help li { line-height: 1.5; }
 .link-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; padding: 0; color: var(--primary, #2563eb); font: inherit; font-size: .78rem; cursor: pointer; text-decoration: underline; }
+.file-meta-note { display: flex; align-items: center; gap: 5px; margin: 4px 0 0; font-size: .78rem; color: #15803d; }
 .field-note { display: block; margin-top: 4px; font-size: .76rem; }
 .field-note--ok { color: #15803d; }
 .field-note--warn { color: #b45309; }
