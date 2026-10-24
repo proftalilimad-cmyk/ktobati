@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#0f766e"/><stop offset="1" stop-color="#134e4a"/>
+  </linearGradient></defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1050" cy="90" r="240" fill="#ffffff" opacity=".06"/>
+  <circle cx="150" cy="560" r="200" fill="#fbbf24" opacity=".08"/>
+  <text x="600" y="300" text-anchor="middle" font-family="Tajawal, sans-serif" font-size="86" font-weight="800" fill="#ffffff" direction="rtl">المكتبة الإلكترونية العربية</text>
+  <text x="600" y="380" text-anchor="middle" font-family="Tajawal, sans-serif" font-size="40" fill="#a7f3d0" direction="rtl">اكتشف آلاف الكتب والمعارف في مكان واحد</text>
+</svg>
