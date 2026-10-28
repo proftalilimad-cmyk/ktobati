@@ -14,7 +14,7 @@ import { listAccountFiles, Up4everAuthError, Up4everRateError, UpstreamError } f
 
 const apiKey = process.env.UP4EVER_API_KEY;
 if (!apiKey || apiKey.length < 20) {
-  console.error('::error title=Up-4ever export failed::UP4EVER_API_KEY missing or too short — check the repository secret.');
+  console.log('::error title=Up-4ever export failed::UP4EVER_API_KEY missing or too short — check the repository secret name is exactly UP4EVER_API_KEY.');
   process.exit(1);
 }
 
@@ -35,7 +35,7 @@ try {
     hint = ' — upstream/network problem talking to Up-4ever.';
   }
   const msg = `${err?.name || 'Error'}: ${err?.message || String(err)}${hint}`;
-  console.error(`::error title=Up-4ever export failed::${msg}`);
+  console.log(`::error title=Up-4ever export failed::${msg}`);
   console.error(msg);
   process.exit(1);
 }
