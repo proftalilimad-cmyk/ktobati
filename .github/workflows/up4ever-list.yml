@@ -12,7 +12,7 @@ on:
       - scripts/.up4ever-trigger
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   export:
@@ -56,6 +56,17 @@ jobs:
             err.txt
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Push failure diagnostics to repo
+        if: failure()
+        run: |
+          git config user.name "up4ever-diag"
+          git config user.email "up4ever-diag@users.noreply.github.com"
+          mkdir -p .diag
+          cp out.txt err.txt .diag/ 2>/dev/null || true
+          git add -f .diag
+          git commit -m "diag(run ${{ github.run_id }}): up4ever export logs" --allow-empty
+          git push origin HEAD:refs/heads/arena/4aa5d7de-ktobati
 
       - name: Job summary
         run: |
