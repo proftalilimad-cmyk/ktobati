@@ -57,15 +57,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Push failure diagnostics to repo
-        if: failure()
+      - name: Push export outputs to repo (readable from sandbox)
+        if: always()
         run: |
-          git config user.name "up4ever-diag"
-          git config user.email "up4ever-diag@users.noreply.github.com"
+          git config user.name "up4ever-bridge"
+          git config user.email "up4ever-bridge@users.noreply.github.com"
           mkdir -p .diag
-          cp out.txt err.txt .diag/ 2>/dev/null || true
+          cp out.txt err.txt up4ever-files.json .diag/ 2>/dev/null || true
           git add -f .diag
-          git commit -m "diag(run ${{ github.run_id }}): up4ever export logs" --allow-empty
+          git commit -m "bridge(run ${{ github.run_id }}): export outputs" --allow-empty
           git push origin HEAD:refs/heads/arena/4aa5d7de-ktobati
 
       - name: Job summary
